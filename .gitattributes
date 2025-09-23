@@ -1,0 +1,39 @@
+# Auto normalize line endings
+* text=auto
+
+# Source code (always LF)
+*.py     text eol=lf
+*.js     text eol=lf
+*.ts     text eol=lf
+*.css    text eol=lf
+*.scss   text eol=lf
+*.html   text eol=lf
+*.json   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.toml   text eol=lf
+*.ini    text eol=lf
+*.sh     text eol=lf
+*.md     text eol=lf
+*.txt    text eol=lf
+
+# Windows batch files (CRLF)
+*.bat    text eol=crlf
+*.cmd    text eol=crlf
+
+# Binary files (no modification)
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+*.tar    binary
+*.jar    binary
+*.db     binary
+*.sqlite binary
+
+# Keep Jupyter Notebooks consistent
+*.ipynb  text eol=lf

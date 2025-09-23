@@ -1,0 +1,59 @@
+[project]
+name = "bookmyevent-backend"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "NexusProgrammingStudio",email = "MaheshwariProjectHub@gmail.com"}
+]
+license = {text = "LICENSE"}
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi (>=0.117.1,<0.118.0)",
+    "sqlmodel (>=0.0.25,<0.0.26)",
+    "fastapi-cli (>=0.0.13,<0.0.14)",
+    "passlib[bcrypt] (>=1.7.4,<2.0.0)",
+    "python-jose (>=3.5.0,<4.0.0)"
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit (>=4.3.0,<5.0.0)",
+    "pytest (>=8.4.2,<9.0.0)"
+]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.flake8]
+ignore = ["E501"]
+max-line-length = 99
+max-complexity = 18
+select = ["B", "C", "E", "F", "W", "T4", "B9"]
+
+[tool.mypy]
+ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+follow_imports = "skip"   # Add this if you still want to skip following imports
+strict = false
+
+[tool.bandit]
+exclude_dirs = ["migrations", "tests", "docs", "static", "media"]
+
+skips = ["B101", "B110", "B311"]
+
+[tool.bandit.severity]
+severity = "MEDIUM"
+
+[tool.bandit.confidence]
+confidence = "MEDIUM"
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
