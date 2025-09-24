@@ -43,6 +43,8 @@ repos:
     hooks:
       - id: bandit
         name: bandit-security-scan
+        args: [ "-r", ".", "-c", "bandit.yml" ]
+        pass_filenames: false
 
   - repo: local
     hooks:

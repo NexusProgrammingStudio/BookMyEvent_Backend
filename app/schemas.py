@@ -40,8 +40,7 @@ class TicketOut(BaseModel):
     quantity: int
     event_id: int
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # ------------------- Events -------------------
@@ -64,8 +63,7 @@ class EventOut(BaseModel):
     organizer_id: int
     tickets: List[TicketOut] = []
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 # ------------------- Bookings -------------------
@@ -80,5 +78,4 @@ class BookingOut(BaseModel):
     ticket_id: int
     quantity: int
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
