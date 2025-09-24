@@ -38,14 +38,14 @@ from .schemas import (
 )
 from .tasks import notify_event_update, send_booking_email
 
+# @asynccontextmanager
+# async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+#     init_db()
+#     yield
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    init_db()
-    yield
 
-
-app = FastAPI(lifespan=lifespan, title="BookMyEvent API", version="1.0.0")
+# app = FastAPI(lifespan=lifespan, title="BookMyEvent API", version="1.0.0")
+app = FastAPI(title="BookMyEvent API", version="1.0.0")
 
 
 # Register endpoint
