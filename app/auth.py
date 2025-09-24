@@ -17,7 +17,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 180
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 if not ACCESS_SECRET_KEY:
-    raise AssertionError("Please Set Secret Key for Acccess Key Encryption")
+    raise AssertionError("Please Set Secret Key for Access Key Encryption")
 
 if not REFRESH_SECRET_KEY:
     raise AssertionError("Please Set Secret Key for Refresh Key Encryption")
