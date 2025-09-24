@@ -18,7 +18,8 @@ dependencies = [
     "redis (>=6.4.0,<7.0.0)",
     "pydantic[email] (>=2.11.9,<3.0.0)",
     "python-multipart (>=0.0.20,<0.0.21)",
-    "httpx (>=0.28.1,<0.29.0)"
+    "httpx (>=0.28.1,<0.29.0)",
+    "alembic (>=1.16.5,<2.0.0)"
 ]
 
 [dependency-groups]
