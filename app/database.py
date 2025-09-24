@@ -15,8 +15,6 @@ engine = create_engine(DATABASE_URL, echo=True)
 # ----------------------
 # User Table
 # ----------------------
-
-
 class UserRole(str, enum.Enum):
     ORGANIZER = "organizer"
     CUSTOMER = "customer"
@@ -42,8 +40,6 @@ class User(UserBase, table=True):
 # -----------------------------
 # Event
 # -----------------------------
-
-
 class EventBase(SQLModel):
     title: str
     description: Optional[str] = None

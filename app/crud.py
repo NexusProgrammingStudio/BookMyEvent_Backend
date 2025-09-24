@@ -11,7 +11,6 @@ from .schemas import BookingCreate, EventCreate, UserCreate
 
 # Users
 def create_user(db: Session, user_in: UserCreate) -> str:
-    # check if username/email already exists
     statement = select(User).where(
         (User.username == user_in.username) | (User.email == user_in.email)
     )
@@ -35,8 +34,6 @@ def create_user(db: Session, user_in: UserCreate) -> str:
 
 # Events
 def create_event(db: Session, organizer_id: int, event_in: EventCreate) -> Event:
-
-    # check if username/email already exists
     statement = select(Event).where(
         (Event.title == event_in.title) | (Event.venue == event_in.venue)
     )
@@ -76,7 +73,6 @@ def list_events(db: Session, skip: int = 0, limit: int = 100) -> List[Event]:
 
 
 def update_event(db: Session, event: Event, event_in: EventCreate) -> Event | None:
-    # 1. Collect existing bookings before overwriting tickets
     existing_event = db.exec(
         select(Event)
         .options(
@@ -91,13 +87,11 @@ def update_event(db: Session, event: Event, event_in: EventCreate) -> Event | No
         for ticket in existing_event.tickets:
             old_bookings.extend(ticket.bookings)
 
-    # Update simple fields only; ticket management may be extended
     event.title = event_in.title
     event.description = event_in.description
     event.venue = event_in.venue
     event.start_time = event_in.start_time
     event.end_time = event_in.end_time
-    # Replace ticket types for simplicity
     event.tickets.clear()
     for t in event_in.tickets or []:
         ticket = Ticket(
@@ -110,7 +104,6 @@ def update_event(db: Session, event: Event, event_in: EventCreate) -> Event | No
     db.add(event)
     db.commit()
     db.refresh(event)
-    # 4. Re-fetch updated event with relationships
     updated_event = db.exec(
         select(Event)
         .options(
@@ -120,17 +113,13 @@ def update_event(db: Session, event: Event, event_in: EventCreate) -> Event | No
         )
         .where(Event.id == event.id)
     ).first()
-
-    # 5. Attach old bookings temporarily for notifications
     if not updated_event:
         return None
     updated_event._old_bookings = old_bookings
     return updated_event
 
 
-# Booking business logic
 def create_booking(db: Session, customer_id: int, booking_in: BookingCreate) -> Booking:
-    # Fetch ticket
     statement = select(Ticket).where(Ticket.id == booking_in.ticket_id)
     ticket = db.exec(statement).first()
     if not ticket:
@@ -142,14 +131,13 @@ def create_booking(db: Session, customer_id: int, booking_in: BookingCreate) -> 
     if ticket.quantity < booking_in.quantity:
         raise HTTPException(status_code=400, detail="Not enough tickets available")
 
-    # Reduce ticket quantity
     ticket.quantity -= booking_in.quantity
 
     booking = Booking(
         customer_id=customer_id, ticket_id=ticket.id, quantity=booking_in.quantity
     )
     db.add(booking)
-    db.add(ticket)  # update ticket quantity
+    db.add(ticket)
     db.commit()
     db.refresh(booking)
     return booking

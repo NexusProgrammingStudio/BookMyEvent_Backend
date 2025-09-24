@@ -1,11 +1,3 @@
-# from tasks import celery as celery_app
-
-# # Autodiscover tasks
-# celery_app.autodiscover_tasks(["BookMyEvent_Backend"])
-
-# # To run the worker: celery -A app.celery_worker.celery_app worker --loglevel=info
-
-
 from celery import Celery
 
 celery_app = Celery(

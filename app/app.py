@@ -41,7 +41,6 @@ from .tasks import notify_event_update, send_booking_email
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # Startup logic
     init_db()
     yield
 
@@ -52,7 +51,6 @@ app = FastAPI(lifespan=lifespan, title="BookMyEvent API", version="1.0.0")
 # Register endpoint
 @app.post("/register")
 def register(user: UserCreate, session: Session = Depends(get_session)) -> str:
-    # check if username/email already exists
     statement = select(User).where(
         (User.username == user.username) | (User.email == user.email)
     )
@@ -63,7 +61,6 @@ def register(user: UserCreate, session: Session = Depends(get_session)) -> str:
     return create_user(session, user)
 
 
-# Login endpoint
 @app.post("/login", response_model=Token)
 def login(user: UserLogin, session: Session = Depends(get_session)) -> dict:
     statement = select(User).where(User.username == user.username)
@@ -96,7 +93,6 @@ def refresh_token(refresh_token: str) -> dict:
     }
 
 
-# Swagger Login
 @app.post("/auto_login", include_in_schema=False)
 def login_swagger(
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -151,7 +147,6 @@ def update_event_endpoint(
     if not updated_event:
         raise HTTPException(status_code=404, detail="Event not found after update")
 
-    # Notify booked users asynchronously
     for booking in getattr(updated_event, "_old_bookings", []):
         print("Notifying", booking.customer.email)  # type: ignore
         notify_event_update.delay(booking.customer.email, updated_event.title)  # type: ignore
@@ -178,7 +173,6 @@ def create_ticket_endpoint(
     existing_ticket = db.exec(statement).first()
 
     if existing_ticket:
-        # Update existing ticket
         existing_ticket.price = ticket_in.price
         existing_ticket.quantity = ticket_in.quantity
         db.add(existing_ticket)
@@ -186,7 +180,6 @@ def create_ticket_endpoint(
         db.refresh(existing_ticket)
         return existing_ticket
     else:
-        # Create a new ticket
         ticket = Ticket(
             event_id=event_id,
             type=ticket_in.type,
@@ -228,7 +221,6 @@ def book_ticket_endpoint(
         raise HTTPException(status_code=400, detail="Customer ID is missing")
     booking = create_booking(db, user.id, booking_in)
 
-    # Trigger async email notification
     ticket = db.get(Ticket, booking.ticket_id)
     if not ticket or not ticket.event:
         raise HTTPException(
@@ -251,10 +243,5 @@ def list_all_booking_endpoint(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
-    # if event_id:
-    #     statement = select(Booking).where(Booking.ticket_id == event_id)
-    #     return list(db.exec(statement).all())
-    # else:send_booking_email.delay(user.email, ticket.event.title) # type: ignore
-
     statement = select(Booking).offset(skip).limit(limit)
     return list(db.exec(statement).all())

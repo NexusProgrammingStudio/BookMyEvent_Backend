@@ -39,7 +39,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_current_user(
     token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
 ) -> User:
-    # Decode JWT
     try:
         payload = jwt.decode(token, ACCESS_SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore
         username: str = payload.get("sub")  # type: ignore
@@ -53,8 +52,6 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
         )
-
-    # Fetch user from DB
     statement = select(User).where(User.username == username)
     user = session.exec(statement).first()
     if user is None:
