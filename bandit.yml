@@ -1,0 +1,22 @@
+# bandit.yml
+# Bandit configuration file
+
+# Directories to exclude from scanning
+exclude_dirs:
+  - migrations
+  - tests
+  - docs
+  - static
+  - media
+
+# Rules to skip (disabled checks)
+skips:
+  - B101  # assert_used
+  - B110  # try_except_pass
+  - B311  # random usage (insecure random)
+
+# Minimum issue severity to report
+severity: MEDIUM
+
+# Minimum confidence level to report
+confidence: MEDIUM

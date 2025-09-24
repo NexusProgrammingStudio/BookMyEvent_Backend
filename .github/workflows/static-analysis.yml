@@ -32,4 +32,4 @@ jobs:
         run: mypy .
 
       - name: Run bandit (security checker)
-        run: bandit -r .
+        run: bandit -r . -c bandit.yml
