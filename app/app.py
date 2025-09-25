@@ -1,4 +1,7 @@
+import json
+import math
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import AsyncGenerator, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -24,7 +27,15 @@ from .crud import (
     list_events,
     update_event,
 )
-from .database import Booking, Event, Ticket, User, UserRole, get_session, init_db
+from .database import (
+    Booking,
+    Event,
+    Ticket,
+    User,
+    UserRole,
+    get_session,
+    init_db,
+)
 from .schemas import (
     BookingCreate,
     BookingOut,
@@ -119,16 +130,16 @@ def create_event_endpoint(
 
 
 @app.get("/events/", response_model=List[EventOut])
-def list_events_endpoint(db: Session = Depends(get_session)) -> List[Event]:
+def list_events_endpoint(db: Session = Depends(get_session)) -> List[dict]:
     return list_events(db)
 
 
 @app.get("/events/{event_id}", response_model=EventOut)
-def get_event_endpoint(event_id: int, db: Session = Depends(get_session)) -> Event:
+def get_event_endpoint(event_id: int, db: Session = Depends(get_session)) -> EventOut:
     event = get_event(db, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    return event
+    return EventOut.from_orm_instance(event)
 
 
 @app.put("/events/{event_id}", response_model=EventOut)
@@ -137,7 +148,7 @@ def update_event_endpoint(
     event_in: EventCreate,
     db: Session = Depends(get_session),
     user: User = Depends(organizer_required),
-) -> Event:
+) -> EventOut:
     event = get_event(db, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -150,7 +161,7 @@ def update_event_endpoint(
     for booking in getattr(updated_event, "_old_bookings", []):
         print("Notifying", booking.customer.email)  # type: ignore
         notify_event_update.delay(booking.customer.email, updated_event.title)  # type: ignore
-    return updated_event
+    return EventOut.from_orm_instance(updated_event)
 
 
 # ------------------- Tickets -------------------
@@ -245,3 +256,140 @@ def list_all_booking_endpoint(
         )
     statement = select(Booking).offset(skip).limit(limit)
     return list(db.exec(statement).all())
+
+
+def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371  # km
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(dlon / 2) ** 2
+    )
+    return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
+
+
+@app.get("/users/recommendations")
+def get_recommendations(
+    user: User = Depends(get_current_user), db: Session = Depends(get_session)
+) -> dict:
+    if not user:
+        return {"error": "User not found"}
+
+    user_coordinates = (
+        (user.latitude, user.longitude) if user.latitude and user.longitude else None
+    )
+    user_interests = user.get_interests()
+
+    # 1️⃣ Past bookings → collect event categories
+    stmt = (
+        select(Event.id)
+        .join(Ticket, Ticket.event_id == Event.id)  # type: ignore
+        .join(Booking, Booking.ticket_id == Ticket.id)  # type: ignore
+        .where(Booking.customer_id == user.id)
+        .distinct()
+    )
+    booked_event_ids = [row for row in db.exec(stmt).all() if row is not None]
+
+    booked_categories: list[str] = []
+    if booked_event_ids:
+        rows = db.exec(select(Event.categories).where(Event.id.in_(booked_event_ids))).all()  # type: ignore
+        for row in rows:
+            if row[0]:
+                try:
+                    booked_categories.extend(json.loads(row[0]))
+                except Exception:
+                    pass
+    booked_categories = list(set(booked_categories))  # unique categories
+
+    # 2️⃣ Consider only upcoming events
+    all_events = db.exec(
+        select(Event).where(Event.start_time >= datetime.utcnow())
+    ).all()
+
+    print(
+        "User:",
+        user.username,
+        "Interests:",
+        user_interests,
+        "Booked categories:",
+        booked_categories,
+    )
+    print(all_events, "All events")
+    recommendations = []
+    for event in all_events:
+        score = 0.0
+        reasons = []
+        event_coordinates = (
+            (event.latitude, event.longitude)
+            if event.latitude and event.longitude
+            else None
+        )
+        event_categories = event.get_categories()
+
+        print(
+            "Evaluating",
+            event.title,
+            booked_categories,
+            user_interests,
+            event_categories,
+        )
+
+        # Past bookings match
+        if booked_categories and event_categories:
+            overlap = set(event_categories) & set(booked_categories)
+            if overlap:
+                score += 0.5
+                reasons.append(f"Similar to your past bookings: {', '.join(overlap)}")
+            else:
+                print("No booking overlap", booked_categories, event_categories)
+
+        # Location match (within 10 km)
+        if user_coordinates and event_coordinates:
+            dist = haversine(*user_coordinates, *event_coordinates)
+            if dist <= 10:
+                score += 0.3
+                reasons.append(f"Near your location (~{int(dist)} km)")
+            else:
+                print("Too far", dist, user_coordinates, event_coordinates)
+
+        # Interests match
+        if user_interests and event_categories:
+            overlap = set(user_interests) & set(event_categories)
+
+            if overlap:
+                score += 0.4
+                reasons.append(f"Matches your interest(s): {', '.join(overlap)}")
+            else:
+                print("No interest overlap", user_interests, event_categories)
+        else:
+            print(
+                "No user interests or event categories",
+                user_interests,
+                event_categories,
+            )
+
+        if score > 0:
+            recommendations.append(
+                {
+                    "event_id": event.id,
+                    "title": event.title,
+                    "categories": event_categories,
+                    "reason": "; ".join(reasons),
+                    "score": round(score, 2),
+                }
+            )
+        else:
+            print(
+                "No score",
+                event.title,
+                booked_categories,
+                user_interests,
+                event_categories,
+            )
+
+    print("Unsorted recommendations:", recommendations)
+    recommendations.sort(key=lambda x: x["score"], reverse=True)
+    return {"user_id": user.id, "recommendations": recommendations[:10]}

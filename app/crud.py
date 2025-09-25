@@ -1,3 +1,4 @@
+import json
 from typing import List
 
 from fastapi import HTTPException
@@ -24,12 +25,18 @@ def create_user(db: Session, user_in: UserCreate) -> str:
         email=user_in.email,
         hashed_password=hash_password(user_in.password),
         role=user_in.role,
+        interests=json.dumps(user_in.interests or []),  # type: ignore
+        latitude=user_in.latitude,
+        longitude=user_in.longitude,
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
 
     return "User Registration Complete"
+
+
+#
 
 
 # Events
@@ -47,6 +54,9 @@ def create_event(db: Session, organizer_id: int, event_in: EventCreate) -> Event
         start_time=event_in.start_time,
         end_time=event_in.end_time,
         organizer_id=organizer_id,
+        categories=json.dumps(event_in.categories or []),
+        latitude=event_in.latitude,
+        longitude=event_in.longitude,
     )
     for t in event_in.tickets or []:
         ticket = Ticket(
@@ -67,9 +77,38 @@ def get_event(db: Session, event_id: int) -> Event | None:
     return db.exec(get_events).first()
 
 
-def list_events(db: Session, skip: int = 0, limit: int = 100) -> List[Event]:
+def list_events(db: Session, skip: int = 0, limit: int = 100) -> List[dict]:
     statement = select(Event).offset(skip).limit(limit)
-    return list(db.exec(statement).all())
+    events = db.exec(statement).all()
+
+    result = []
+    for event in events:
+        result.append(
+            {
+                "id": event.id,
+                "title": event.title,
+                "venue": event.venue,
+                "description": event.description,
+                "organizer_id": event.organizer_id,
+                "start_time": event.start_time,
+                "end_time": event.end_time,
+                "categories": event.get_categories(),  # deserialize JSON string
+                "latitude": event.latitude,
+                "longitude": event.longitude,
+                "tickets": [
+                    {
+                        "id": t.id,
+                        "type": t.type,
+                        "price": t.price,
+                        "quantity": t.quantity,
+                        "event_id": event.id,
+                    }
+                    for t in event.tickets
+                ],
+            }
+        )
+
+    return result
 
 
 def update_event(db: Session, event: Event, event_in: EventCreate) -> Event | None:
@@ -92,6 +131,9 @@ def update_event(db: Session, event: Event, event_in: EventCreate) -> Event | No
     event.venue = event_in.venue
     event.start_time = event_in.start_time
     event.end_time = event_in.end_time
+    event.categories = json.dumps(event_in.categories or [])
+    event.latitude = event_in.latitude
+    event.longitude = event_in.longitude
     event.tickets.clear()
     for t in event_in.tickets or []:
         ticket = Ticket(
