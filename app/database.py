@@ -1,10 +1,21 @@
 # mypy: ignore-errors
 import enum
+import json
 from datetime import datetime
 from typing import Generator, List, Optional
 
+from pydantic import field_validator
+from sqlalchemy import JSON
 from sqlalchemy.orm import sessionmaker
-from sqlmodel import Field, Relationship, Session, SQLModel, create_engine
+from sqlmodel import (
+    Column,
+    Field,
+    Relationship,
+    Session,
+    SQLModel,
+    String,
+    create_engine,
+)
 
 # ----------------------
 # Database Engine
@@ -30,6 +41,21 @@ class UserBase(SQLModel):
     username: str = Field(index=True, unique=True)
     email: str = Field(index=True, unique=True)
     role: UserRole
+    interests: str = Field(default="[]")
+    # NEW: coordinates
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+    @field_validator("interests", mode="before")
+    def serialize_interests(cls, v):
+        if isinstance(v, list):
+            return json.dumps(v)
+        elif isinstance(v, str):
+            return v
+        return "[]"
+
+    def get_interests(self) -> List[str]:
+        return json.loads(self.interests)
 
 
 class User(UserBase, table=True):
@@ -50,6 +76,26 @@ class EventBase(SQLModel):
     start_time: datetime
     end_time: Optional[datetime] = None
     venue: str
+    categories: str = Field(default="[]")
+    # NEW: coordinates
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+    @field_validator("categories", mode="before")
+    def parse_categories(cls, v):
+        if isinstance(v, list):
+            return json.dumps(v)  # convert list -> JSON string when saving
+        elif isinstance(v, str):
+            return v  # already JSON string
+        return "[]"
+
+    def get_categories(self) -> List[str]:
+        return json.loads(self.categories)
+
+    @property
+    def category_list(self) -> List[str]:
+        """Return categories as Python list."""
+        return json.loads(self.categories or "[]")
 
 
 class Event(EventBase, table=True):
