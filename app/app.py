@@ -308,16 +308,8 @@ def get_recommendations(
     all_events = db.exec(
         select(Event).where(Event.start_time >= datetime.utcnow())
     ).all()
-
-    print(
-        "User:",
-        user.username,
-        "Interests:",
-        user_interests,
-        "Booked categories:",
-        booked_categories,
-    )
-    print(all_events, "All events")
+    if not all_events:
+        return {"user_id": user.id, "msg": "No Events Found in Future."}
     recommendations = []
     for event in all_events:
         score = 0.0
@@ -329,32 +321,18 @@ def get_recommendations(
         )
         event_categories = event.get_categories()
 
-        print(
-            "Evaluating",
-            event.title,
-            booked_categories,
-            user_interests,
-            event_categories,
-        )
-
         # Past bookings match
         if booked_categories and event_categories:
             overlap = set(event_categories) & set(booked_categories)
             if overlap:
                 score += 0.5
                 reasons.append(f"Similar to your past bookings: {', '.join(overlap)}")
-            else:
-                print("No booking overlap", booked_categories, event_categories)
-
         # Location match (within 10 km)
         if user_coordinates and event_coordinates:
             dist = haversine(*user_coordinates, *event_coordinates)
             if dist <= 10:
                 score += 0.3
                 reasons.append(f"Near your location (~{int(dist)} km)")
-            else:
-                print("Too far", dist, user_coordinates, event_coordinates)
-
         # Interests match
         if user_interests and event_categories:
             overlap = set(user_interests) & set(event_categories)
@@ -364,12 +342,6 @@ def get_recommendations(
                 reasons.append(f"Matches your interest(s): {', '.join(overlap)}")
             else:
                 print("No interest overlap", user_interests, event_categories)
-        else:
-            print(
-                "No user interests or event categories",
-                user_interests,
-                event_categories,
-            )
 
         if score > 0:
             recommendations.append(
@@ -381,15 +353,6 @@ def get_recommendations(
                     "score": round(score, 2),
                 }
             )
-        else:
-            print(
-                "No score",
-                event.title,
-                booked_categories,
-                user_interests,
-                event_categories,
-            )
-
     print("Unsorted recommendations:", recommendations)
     recommendations.sort(key=lambda x: x["score"], reverse=True)
     return {"user_id": user.id, "recommendations": recommendations[:10]}
