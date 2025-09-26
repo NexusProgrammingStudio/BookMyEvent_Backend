@@ -159,7 +159,6 @@ def update_event_endpoint(
         raise HTTPException(status_code=404, detail="Event not found after update")
 
     for booking in getattr(updated_event, "_old_bookings", []):
-        print("Notifying", booking.customer.email)  # type: ignore
         notify_event_update.delay(booking.customer.email, updated_event.title)  # type: ignore
     return EventOut.from_orm_instance(updated_event)
 
@@ -308,8 +307,10 @@ def get_recommendations(
     all_events = db.exec(
         select(Event).where(Event.start_time >= datetime.utcnow())
     ).all()
+
     if not all_events:
         return {"user_id": user.id, "msg": "No Events Found in Future."}
+
     recommendations = []
     for event in all_events:
         score = 0.0
@@ -340,8 +341,6 @@ def get_recommendations(
             if overlap:
                 score += 0.4
                 reasons.append(f"Matches your interest(s): {', '.join(overlap)}")
-            else:
-                print("No interest overlap", user_interests, event_categories)
 
         if score > 0:
             recommendations.append(
@@ -353,6 +352,5 @@ def get_recommendations(
                     "score": round(score, 2),
                 }
             )
-    print("Unsorted recommendations:", recommendations)
     recommendations.sort(key=lambda x: x["score"], reverse=True)
     return {"user_id": user.id, "recommendations": recommendations[:10]}
