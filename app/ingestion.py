@@ -52,6 +52,13 @@ def build_content(doc: dict, doc_type: str) -> str:
         raise ValueError("doc_type must be 'user' or 'event'")
 
 
+def _get_index_files(doc_type: str) -> tuple[str, str]:
+    """Return correct index + metadata file paths per doc_type."""
+    index_file = os.path.join(INDEX_PATH, f"events_faiss_index.faiss")
+    meta_file = os.path.join(INDEX_PATH, f"events_faiss_metadata.pkl")
+    return index_file, meta_file
+
+
 def ingest_or_update_doc(
     doc: dict,
     doc_type: str,
@@ -61,10 +68,9 @@ def ingest_or_update_doc(
     Single function to ingest or update embeddings for users or events.
     Users can include past bookings for re-embedding.
     """
-    os.makedirs(INDEX_PATH, exist_ok=True)
 
-    index_file = os.path.join(INDEX_PATH, "faiss_index.faiss")
-    meta_file = os.path.join(INDEX_PATH, "faiss_metadata.pkl")
+    # --- Load event index ---
+    index_file, meta_file = _get_index_files("event")
 
     content = build_content(doc, doc_type)
     vector = embedder.encode([content]).astype("float32")
@@ -128,13 +134,6 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def _get_index_files(doc_type: str) -> tuple[str, str]:
-    """Return correct index + metadata file paths per doc_type."""
-    index_file = os.path.join(INDEX_PATH, f"faiss_index.faiss")
-    meta_file = os.path.join(INDEX_PATH, f"faiss_metadata.pkl")
-    return index_file, meta_file
-
-
 def recommend_events_for_user(
     user_doc: dict, top_k: int = 5, max_distance_km: int = 50
 ) -> list[dict]:
@@ -194,7 +193,7 @@ def recommend_events_for_user(
 
         # --- Past booking boost ---
         if meta.get("id") in raw_past_bookings or any(
-            cat in raw_past_bookings for cat in meta.get("categories", [])
+            cat in past_booking_categories for cat in meta.get("categories", [])
         ):
             semantic_score += 0.2
             reasons.append("Similar to your past bookings")
