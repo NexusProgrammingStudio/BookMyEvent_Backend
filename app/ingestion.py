@@ -164,9 +164,7 @@ def recommend_events_for_user(
 
     # Extract user preferences
     raw_past_bookings = user_doc.get("past_bookings", [])
-    past_booking_categories = {
-        b["category"] for b in raw_past_bookings if "category" in b
-    }
+    past_booking_ids = {b["event_id"] for b in raw_past_bookings if "event_id" in b}
     interests = set(user_doc.get("interests", []))
 
     for dist, idx in zip(D[0], I[0]):
@@ -192,10 +190,8 @@ def recommend_events_for_user(
             reasons.append(f"Nearby ({round(distance_km,1)} km)")
 
         # --- Past booking boost ---
-        if meta.get("id") in raw_past_bookings or any(
-            cat in past_booking_categories for cat in meta.get("categories", [])
-        ):
-            semantic_score += 0.2
+        if meta.get("id") in past_booking_ids:
+            semantic_score += 0.3
             reasons.append("Similar to your past bookings")
 
         # --- Interest match boost ---
