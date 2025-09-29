@@ -1,8 +1,7 @@
 import json
 import math
-from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import AsyncGenerator, List, Optional
+from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -15,7 +14,6 @@ from .auth import (
     customer_required,
     decode_refresh_token,
     get_current_user,
-    hash_password,
     organizer_required,
     verify_password,
 )
@@ -27,18 +25,10 @@ from .crud import (
     list_events,
     update_event,
 )
-from .database import (
-    Booking,
-    Event,
-    Ticket,
-    User,
-    UserRole,
-    get_session,
-    init_db,
-)
+from .database import Booking, Event, Ticket, User, UserRole, get_session
+from .ingestion import recommend_events_for_user
 from .schemas import (
     BookingCreate,
-    BookingOut,
     EventCreate,
     EventOut,
     TicketCreate,
@@ -46,6 +36,7 @@ from .schemas import (
     Token,
     UserCreate,
     UserLogin,
+    UserOut,
 )
 from .tasks import notify_event_update, send_booking_email
 
@@ -114,8 +105,13 @@ def login_swagger(
     return {"access_token": token["access_token"], "token_type": "bearer"}
 
 
+@app.post("/me", response_model=UserOut)
+def read_users_me(current_user: User = Depends(get_current_user)) -> UserOut:
+    return UserOut.from_orm_instance(current_user)
+
+
 # ------------------- Events -------------------
-@app.post("/events/", response_model=EventOut)
+@app.post("/events/", response_model=Event)
 def create_event_endpoint(
     event_in: EventCreate,
     db: Session = Depends(get_session),
@@ -354,3 +350,31 @@ def get_recommendations(
             )
     recommendations.sort(key=lambda x: x["score"], reverse=True)
     return {"user_id": user.id, "recommendations": recommendations[:10]}
+
+
+@app.get("/users/ai/recommendations")
+def get_ai_recommendations(
+    user: User = Depends(get_current_user), db: Session = Depends(get_session)
+) -> dict:
+    if not user:
+        return {"error": "User not found"}
+
+    user_dict = UserOut.from_orm_instance(user).model_dump()
+    bookings_text = []
+    for b in user_dict.get("past_bookings", []):
+        event = db.get(Event, b["event_id"])
+        if event:
+            event_dict = EventOut.from_orm_instance(event).model_dump()
+            categories = ", ".join(event_dict.get("categories", []))
+            bookings_text.append(
+                {
+                    "Event": event_dict.get("title"),
+                    "Categories": categories,
+                    "Venue": event_dict.get("venue"),
+                }
+            )
+    user_dict["past_bookings_text"] = bookings_text
+    recommendations = recommend_events_for_user(
+        user_doc=user_dict, top_k=5, max_distance_km=50
+    )
+    return {"user_id": user.id, "recommendations": recommendations}

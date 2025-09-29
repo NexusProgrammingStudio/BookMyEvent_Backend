@@ -5,9 +5,10 @@ from fastapi import HTTPException
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
-from .auth import get_current_user, hash_password
+from .auth import hash_password
 from .database import Booking, Event, Ticket, User
-from .schemas import BookingCreate, EventCreate, UserCreate
+from .ingestion import ingest_or_update_doc
+from .schemas import BookingCreate, EventCreate, EventOut, UserCreate, UserOut
 
 
 # Users
@@ -32,6 +33,8 @@ def create_user(db: Session, user_in: UserCreate) -> str:
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
+    # ingest_or_update_doc(doc=UserOut.from_orm_instance(db_user).model_dump(), doc_type="user")
 
     return "User Registration Complete"
 
@@ -69,6 +72,10 @@ def create_event(db: Session, organizer_id: int, event_in: EventCreate) -> Event
     db.add(event)
     db.commit()
     db.refresh(event)
+
+    ingest_or_update_doc(
+        doc=EventOut.from_orm_instance(event).model_dump(), doc_type="event"
+    )
     return event
 
 
@@ -146,6 +153,9 @@ def update_event(db: Session, event: Event, event_in: EventCreate) -> Event | No
     db.add(event)
     db.commit()
     db.refresh(event)
+    ingest_or_update_doc(
+        doc=EventOut.from_orm_instance(event).model_dump(), doc_type="event"
+    )
     updated_event = db.exec(
         select(Event)
         .options(
@@ -176,10 +186,31 @@ def create_booking(db: Session, customer_id: int, booking_in: BookingCreate) -> 
     ticket.quantity -= booking_in.quantity
 
     booking = Booking(
-        customer_id=customer_id, ticket_id=ticket.id, quantity=booking_in.quantity
+        customer_id=customer_id,
+        ticket_id=ticket.id,
+        quantity=booking_in.quantity,
+        event_id=ticket.event_id,
     )
     db.add(booking)
     db.add(ticket)
     db.commit()
     db.refresh(booking)
+
+    # db_user = db.get(User, customer_id)
+    # if db_user:
+    #     user_dict = UserOut.from_orm_instance(db_user).model_dump()
+    #     bookings_text = []
+    #     for b in user_dict.get("past_bookings", []):
+    #         event = db.get(Event, b["event_id"])
+    #         if event:
+    #             event_dict = EventOut.from_orm_instance(event).model_dump()
+    #             categories = ", ".join(event_dict.get("categories", []))
+    #             bookings_text.append({
+    #                     "Event": event_dict.get('title'),
+    #                     "Categories": categories,
+    #                     "Venue": event_dict.get('venue')
+    #             })
+    #     user_dict["past_bookings_text"] = bookings_text
+    #     ingest_or_update_doc(doc=user_dict, doc_type="user")
+
     return booking

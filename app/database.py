@@ -5,15 +5,12 @@ from datetime import datetime
 from typing import Generator, List, Optional
 
 from pydantic import field_validator
-from sqlalchemy import JSON
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import (
-    Column,
     Field,
     Relationship,
     Session,
     SQLModel,
-    String,
     create_engine,
 )
 
@@ -56,6 +53,11 @@ class UserBase(SQLModel):
 
     def get_interests(self) -> List[str]:
         return json.loads(self.interests)
+
+    @property
+    def intrest_list(self) -> List[str]:
+        """Return intrests as Python list."""
+        return json.loads(self.interests or "[]")
 
 
 class User(UserBase, table=True):
@@ -105,6 +107,7 @@ class Event(EventBase, table=True):
     # Relationships
     organizer: User = Relationship(back_populates="events")
     tickets: List["Ticket"] = Relationship(back_populates="event")
+    bookings: List["Booking"] = Relationship(back_populates="events")
 
 
 # -----------------------------
@@ -137,10 +140,12 @@ class Booking(BookingBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     customer_id: int = Field(foreign_key="user.id")
     ticket_id: Optional[int] = Field(foreign_key="ticket.id")
+    event_id: Optional[int] = Field(foreign_key="event.id")
 
     # Relationships
     customer: User = Relationship(back_populates="bookings")
     ticket: Ticket = Relationship(back_populates="bookings")
+    events: Event = Relationship(back_populates="bookings")
 
 
 # ----------------------
